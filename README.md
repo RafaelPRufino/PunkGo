@@ -1,6 +1,8 @@
 # Punk\Go
 
-Projeto em GO{lang} com suporte para Google Analytics.
+Projeto para aprimorar as habilidades em GO{lang}. 
+
+Convertendo alguns projetos já desenvolvidos em outras langs para GO{lang} e add novas features.
 
 ```go
 package main
