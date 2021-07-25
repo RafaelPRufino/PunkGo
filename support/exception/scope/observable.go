@@ -1,4 +1,4 @@
-package Support
+package scope
 
 type Observable struct {
 	Try     func()
