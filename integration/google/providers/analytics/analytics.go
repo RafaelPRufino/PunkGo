@@ -2,7 +2,6 @@ package analytics
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"github.com/RafaelPRufino/PunkGo/integration/google/providers"
 	"io/ioutil"
@@ -11,7 +10,7 @@ import (
 )
 
 const (
-	AnalyticsScope = "https://analyticsreporting.googleapis.com/v4/reports:batchGet"
+	AnalyticsBatchGET = "https://analyticsreporting.googleapis.com/v4/reports:batchGet"
 )
 
 type ClientForAnalytics interface {
@@ -23,24 +22,18 @@ type GoogleAnalytics interface {
 	Do(request Request) (Response, error)
 }
 
-type Analytics struct {
+type analytics struct {
 	Client ClientForAnalytics
 }
 
-func NewAnalyticsProvider(client ClientForAnalytics) GoogleAnalytics {
-	var ga = Analytics{}
-	ga.Client = client
-	return &ga
-}
-
-func (receiver *Analytics) CreateRequest(ViewId string) Request {
+func (receiver *analytics) CreateRequest(ViewId string) Request {
 	return Request{ViewId, []RequestMetric{}, []RequestDimension{}}
 }
 
-func (receiver *Analytics) Do(request Request) (Response, error) {
+func (receiver *analytics) Do(request Request) (Response, error) {
 	response := Response{}
 	if receiver.Client.IsAuthenticated() == false {
-		errors.New("unauthenticated")
+		NewError("Unauthorized")
 	}
 
 	json, err := request.MarshalJSON()
@@ -48,19 +41,19 @@ func (receiver *Analytics) Do(request Request) (Response, error) {
 		return response, err
 	}
 
-	googleResponse, err := receiver.DoReport(json)
+	googleResponse, err := receiver.doReport(json)
 	if err != nil {
 		return response, err
 	}
 
-	err = response.Absorb(googleResponse)
+	err = response.absorb(googleResponse)
 	return response, err
 }
 
-func (receiver *Analytics) DoReport(report []byte) (GoogleResponseReport, error) {
+func (receiver *analytics) doReport(report []byte) (GoogleResponseReport, error) {
 	result := GoogleResponseReport{}
 
-	endpoint := AnalyticsScope
+	endpoint := AnalyticsBatchGET
 	accessToken := receiver.Client.GetAccessToken()
 	client := &http.Client{}
 
@@ -88,11 +81,17 @@ func (receiver *Analytics) DoReport(report []byte) (GoogleResponseReport, error)
 	if err != nil {
 		descError := string(body)
 		if strings.Contains(descError, "UNAUTHENTICATED") {
-			err = NewError("UNAUTHENTICATED")
+			err = NewError("Unauthenticated")
 		} else if strings.Contains(descError, "INVALID_ARGUMENT") {
 			err = NewError("MalformedRequest")
 		}
 	}
 
 	return result, err
+}
+
+func NewAnalyticsProvider(client ClientForAnalytics) GoogleAnalytics {
+	var ga = analytics{}
+	ga.Client = client
+	return &ga
 }

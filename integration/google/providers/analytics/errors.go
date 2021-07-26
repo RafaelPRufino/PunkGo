@@ -48,7 +48,7 @@ func NewError(errorName string) error {
 			time.Now().UTC(),
 			"Malformed Request",
 		},
-		"UNAUTHENTICATED": ErrResponseAuthorization{
+		"Unauthenticated": ErrResponseAuthorization{
 			time.Now().UTC(),
 			"UnAuthenticated",
 		},

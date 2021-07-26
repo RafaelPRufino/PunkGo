@@ -39,8 +39,8 @@ func (response *Response) Add(value ResponseData) {
 	response.Data = append(response.Data, value)
 }
 
-// Absorb adds the value to key. It appends to any existing
-func (response *Response) Absorb(reports GoogleResponseReport) error {
+// absorb adds the value to key. It appends to any existing
+func (response *Response) absorb(reports GoogleResponseReport) error {
 	for _, report := range reports.Reports {
 		header := report.ColumnHeader
 		dimHdqrs := header.Dimensions
@@ -70,7 +70,7 @@ func (response *Response) Absorb(reports GoogleResponseReport) error {
 	return nil
 }
 
-// GoogleResponseReport Response Google Analytics
+// GoogleResponseReport Response Google analytics
 type GoogleResponseReport struct {
 	Created int64 `json:"created"`
 	Reports []struct {

@@ -2,7 +2,7 @@ package analytics
 
 import "encoding/json"
 
-// Request Request Google Analytics
+// Request Request Google analytics
 type Request struct {
 	Id         string             `json:"viewId"`
 	Metrics    []RequestMetric    `json:"metrics"`

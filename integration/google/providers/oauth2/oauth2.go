@@ -14,15 +14,19 @@ type ClientForOAuth2 interface {
 	providers.ProviderTarget
 }
 
-type OAuth2 struct {
+type GoogleOAuth2 interface {
+	GetNewToken(refreshToken  auth.OAuthCredentials ) auth.OAuthCredentials
+}
+
+type oAuth2 struct {
 	Client ClientForOAuth2
 }
 
-func NewOAuth2Provider(client ClientForOAuth2) OAuth2 {
-	return OAuth2{client}
+func NewOAuth2Provider(client ClientForOAuth2) GoogleOAuth2 {
+	return &oAuth2{client}
 }
 
-func (receiver *OAuth2) GetNewToken(refreshToken  auth.OAuthCredentials ) auth.OAuthCredentials {
+func (receiver *oAuth2) GetNewToken(refreshToken  auth.OAuthCredentials ) auth.OAuthCredentials {
 	credentials := auth.OAuthCredentials{}
 	google := receiver.Client.GetGoogleCredentials()
 

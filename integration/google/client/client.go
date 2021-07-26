@@ -12,48 +12,48 @@ type GoogleClient interface {
 	NewAnalyticsService() analytics.GoogleAnalytics
 }
 
-type Client struct {
+type client struct {
 	GoogleCredentials auth.GoogleCredentials
 	RefreshToken      auth.OAuthCredentials
 	AccessToken       auth.OAuthCredentials
 }
 
-func (receiver *Client) GetGoogleCredentials() auth.GoogleCredentials {
+func (receiver *client) GetGoogleCredentials() auth.GoogleCredentials {
 	return receiver.GoogleCredentials
 }
 
-func (receiver *Client) GetAccessToken() auth.OAuthCredentials {
+func (receiver *client) GetAccessToken() auth.OAuthCredentials {
 	return receiver.AccessToken
 }
 
-func (receiver *Client) IsAuthenticated() bool {
+func (receiver *client) IsAuthenticated() bool {
 	if receiver.RefreshToken.IsExpired() != false {
 		receiver.AccessToken = receiver.RefreshToken
 	}
 
 	if receiver.AccessToken.IsExpired() {
-		oAuth2 := receiver.CreateOAuth2Provider()
+		oAuth2 := receiver.NewOAuth2Service()
 		receiver.AccessToken = oAuth2.GetNewToken(receiver.RefreshToken)
 	}
 
 	return receiver.AccessToken.IsExpired() == false
 }
 
-func (receiver *Client) CreateOAuth2Provider() oauth2.OAuth2 {
+func (receiver *client) NewOAuth2Service() oauth2.GoogleOAuth2 {
 	return oauth2.NewOAuth2Provider(receiver)
 }
 
-func (receiver *Client) NewAnalyticsService() analytics.GoogleAnalytics {
+func (receiver *client) NewAnalyticsService() analytics.GoogleAnalytics {
 	return analytics.NewAnalyticsProvider(receiver)
 }
 
-func (receiver *Client) SignIn(With auth.OAuthCredentials) bool {
+func (receiver *client) SignIn(With auth.OAuthCredentials) bool {
 	receiver.RefreshToken = With
 	return receiver.IsAuthenticated()
 }
 
 func NewClient(credentials auth.GoogleCredentials) GoogleClient {
-	var client Client = Client{}
+	var client client = client{}
 	client.GoogleCredentials = credentials
 	return &client
 }
