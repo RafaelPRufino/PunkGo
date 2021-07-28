@@ -9,98 +9,135 @@ import (
 	"time"
 )
 
-type Response struct {
-	Data []ResponseData
+type Writer interface {
+	Create() DataRow
+	Add(row interface{})
+	SetSchema(schema ReportSchema)
 }
 
-type ResponseData struct {
-	Created    int64              `json:"created"`
-	Dimensions ResponseDimensions `json:"dimensions"`
-	Metrics    ResponseMetrics    `json:"metrics"`
+type DataRow interface {
+	AddMetric(key string, value interface{})
+	AddDimension(key string, value interface{})
+	SetCreated(created int64)
 }
 
-type ResponseDimensions struct {
-	support.Attributes
-}
-
-type ResponseMetrics struct {
-	support.Attributes
-}
-
-// MarshalJSON custom parse JSON
-func (response *Response) MarshalJSON() ([]byte, error) {
-	type NoMethod ResponseData
-	data := response.Data
-	return json.Marshal(&data)
-}
-
-// Add adds the value ResponseData
-func (response *Response) Add(value ResponseData) {
-	response.Data = append(response.Data, value)
-}
-
-// absorb adds the value to key. It appends to any existing
-func (response *Response) absorb(reports GoogleResponseReport) error {
+func writerReport(reports GoogleResponseReports, writer Writer) error {
 	for _, report := range reports.Reports {
-		header := report.ColumnHeader
-		dimHdqrs := header.Dimensions
-		metricHdqrs := header.MetricHeader.MetricHeaderEntries
-		rows := report.Data.Rows
-
-		for _, row := range rows {
-			dims := row.Dimensions
-			metrics := row.Metrics
-
-			data := ResponseData{reports.Created, ResponseDimensions{}, ResponseMetrics{}}
-			for i := 0; i < len(dimHdqrs) && i < len(dims); i++ {
-				name := strings.Replace(dimHdqrs[i], "ga:", "", 1)
-				data.Dimensions.Add(name, dims[i])
-			}
-
-			data.Metrics = ResponseMetrics{}
-			for _, metric := range metrics {
-				for j := 0; j < len(metricHdqrs) && j < len(metric.Values); j++ {
-					name := strings.Replace(metricHdqrs[j].Name, "ga:", "", 1)
-					data.Metrics.Add(name, metric.Values[j])
-				}
-			}
-			response.Add(data)
-		}
+		writerData(reports.Created, report.Header, report.Data, writer)
+		writerSchema(report.Header, writer)
 	}
 	return nil
 }
 
-// GoogleResponseReport Response Google analytics
-type GoogleResponseReport struct {
-	Created int64 `json:"created"`
-	Reports []struct {
-		ColumnHeader struct {
-			Dimensions   []string `json:"dimensions,omitempty"`
-			MetricHeader struct {
-				MetricHeaderEntries []struct {
-					Name string `json:"name"`
-					Type string `json:"type"`
-				} `json:"metricHeaderEntries"`
-			} `json:"metricHeader"`
-		} `json:"columnHeader"`
-		Data struct {
-			Rows []struct {
-				Dimensions []string `json:"dimensions,omitempty"`
+func writerData(created int64, header GoogleResponseReportHeader, data GoogleResponseReportData, writer Writer) {
+	dimensionsHeader := header.Dimensions
+	metricsHeader := header.MetricHeader.MetricHeaderEntries
+	rows := data.Rows
 
-				Metrics []*struct {
-					Values []interface{} `json:"values,omitempty"`
-				} `json:"metrics,omitempty"`
-			} `json:"rows"`
-		} `json:"data"`
-	} `json:"reports"`
+	if writer == nil {
+		writer = &DefaultReportWriter{}
+	}
+
+	for _, row := range rows {
+		dimensions := row.Dimensions
+		metrics := row.Metrics
+
+		data := writer.Create()
+		data.SetCreated(created)
+		for i := 0; i < len(dimensionsHeader) && i < len(dimensions); i++ {
+			name := strings.Replace(dimensionsHeader[i], "ga:", "", 1)
+			data.AddDimension(name, dimensions[i])
+		}
+
+		for _, metric := range metrics {
+			for j := 0; j < len(metricsHeader) && j < len(metric.Values); j++ {
+				name := strings.Replace(metricsHeader[j].Name, "ga:", "", 1)
+				data.AddMetric(name, metric.Values[j])
+			}
+		}
+		writer.Add(data)
+	}
 }
 
-// UnmarshalJSON JSON to GoogleResponseReport
-func (response *GoogleResponseReport) UnmarshalJSON(data []byte) error {
+// DefaultReportWriter writer report
+type DefaultReportWriter struct {
+	Data   []DefaultDataRow
+	Schema ReportSchema `json:"schema"`
+}
+
+// Create create new DataRow for insert
+func (writer *DefaultReportWriter) Create() DataRow {
+	return &DefaultDataRow{}
+}
+
+// Add add new row report
+func (writer *DefaultReportWriter) Add(row interface{}) {
+	writer.Data = append(writer.Data, *row.(*DefaultDataRow))
+}
+
+// SetSchema set schema report
+func (writer *DefaultReportWriter) SetSchema(schema ReportSchema) {
+	writer.Schema = schema
+}
+
+// MarshalJSON custom parse JSON
+func (writer *DefaultReportWriter) MarshalJSON() ([]byte, error) {
+	data := writer.Data
+	return json.Marshal(&data)
+}
+
+// DefaultDataRow data row default
+type DefaultDataRow struct {
+	Created    int64              `json:"created"`
+	Dimensions support.Attributes `json:"dimensions"`
+	Metrics    support.Attributes `json:"metrics"`
+}
+
+func (row *DefaultDataRow) AddMetric(key string, value interface{}) {
+	row.Metrics.Add(key, value)
+}
+
+func (row *DefaultDataRow) AddDimension(key string, value interface{}) {
+	row.Metrics.Add(key, value)
+}
+
+func (row *DefaultDataRow) SetCreated(created int64) {
+	row.Created = created
+}
+
+// GoogleResponseReports Response Google analytics
+type GoogleResponseReports struct {
+	Created int64                  `json:"created"`
+	Reports []GoogleResponseReport `json:"reports"`
+}
+type GoogleResponseReport struct {
+	Header GoogleResponseReportHeader `json:"columnHeader"`
+	Data   GoogleResponseReportData   `json:"data"`
+}
+type GoogleResponseReportHeader struct {
+	Dimensions   []string `json:"dimensions,omitempty"`
+	MetricHeader struct {
+		MetricHeaderEntries []struct {
+			Name string `json:"name"`
+			Type string `json:"type"`
+		} `json:"metricHeaderEntries"`
+	} `json:"metricHeader"`
+}
+type GoogleResponseReportData struct {
+	Rows []struct {
+		Dimensions []string `json:"dimensions,omitempty"`
+		Metrics    []*struct {
+			Values []interface{} `json:"values,omitempty"`
+		} `json:"metrics,omitempty"`
+	} `json:"rows"`
+}
+
+// UnmarshalJSON JSON to GoogleResponseReports
+func (response *GoogleResponseReports) UnmarshalJSON(data []byte) error {
 	var err error
 	scope.Observable{
 		Try: func() {
-			type NoMethod GoogleResponseReport
+			type NoMethod GoogleResponseReports
 			var result struct {
 				*NoMethod
 			}

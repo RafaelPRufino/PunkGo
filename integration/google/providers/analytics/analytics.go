@@ -19,7 +19,7 @@ type ClientForAnalytics interface {
 
 type GoogleAnalytics interface {
 	CreateRequest(ViewId string) Request
-	Do(request Request) (Response, error)
+	Do(request Request , writer Writer) error
 }
 
 type analytics struct {
@@ -30,28 +30,27 @@ func (receiver *analytics) CreateRequest(ViewId string) Request {
 	return Request{ViewId, []RequestMetric{}, []RequestDimension{}}
 }
 
-func (receiver *analytics) Do(request Request) (Response, error) {
-	response := Response{}
+func (receiver *analytics) Do(request Request, writer Writer) error {
 	if receiver.Client.IsAuthenticated() == false {
 		NewError("Unauthorized")
 	}
 
 	json, err := request.MarshalJSON()
 	if err != nil {
-		return response, err
+		return err
 	}
 
 	googleResponse, err := receiver.doReport(json)
 	if err != nil {
-		return response, err
+		return err
 	}
 
-	err = response.absorb(googleResponse)
-	return response, err
+	err = writerReport(googleResponse, writer)
+	return err
 }
 
-func (receiver *analytics) doReport(report []byte) (GoogleResponseReport, error) {
-	result := GoogleResponseReport{}
+func (receiver *analytics) doReport(report []byte) (GoogleResponseReports, error) {
+	result := GoogleResponseReports{}
 
 	endpoint := AnalyticsBatchGET
 	accessToken := receiver.Client.GetAccessToken()
@@ -59,7 +58,7 @@ func (receiver *analytics) doReport(report []byte) (GoogleResponseReport, error)
 
 	request, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(report)) // URL-encoded payload
 	if err != nil {
-		return GoogleResponseReport{}, err
+		return GoogleResponseReports{}, err
 	}
 
 	request.Header.Add("Content-Type", "application/json")
@@ -68,17 +67,16 @@ func (receiver *analytics) doReport(report []byte) (GoogleResponseReport, error)
 	response, err := client.Do(request)
 	if err != nil {
 		fmt.Println(err)
-		return GoogleResponseReport{}, err
+		return GoogleResponseReports{}, err
 	}
 
 	defer response.Body.Close()
 	body, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		return GoogleResponseReport{}, err
+		return GoogleResponseReports{}, err
 	}
 
-	err = result.UnmarshalJSON(body)
-	if err != nil {
+	if err = result.UnmarshalJSON(body); err != nil {
 		descError := string(body)
 		if strings.Contains(descError, "UNAUTHENTICATED") {
 			err = NewError("Unauthenticated")
